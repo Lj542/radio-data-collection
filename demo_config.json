@@ -1,0 +1,6 @@
+{
+  "center_freq": 100000000.0,
+  "sample_rate": 2400000.0,
+  "gain": "high",
+  "device_id": "rtl-sdr-demo"
+}

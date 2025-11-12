@@ -1,7 +1,8 @@
 """
-信号处理模块
-负责无线电信号的采集、处理和存储
+信号处理器模块
+实现IQ信号的创建、处理和分析功能
 """
+
 import numpy as np
 import logging
 from typing import Optional, Tuple, List
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SignalData:
-    """信号数据结构"""
+    """信号数据类"""
     data: np.ndarray
     sample_rate: float
     center_freq: float
@@ -25,276 +26,152 @@ class SignalData:
 class SignalProcessor:
     """信号处理器类"""
     
-    def __init__(self, config_handler):
-        """
-        初始化信号处理器
-        
-        Args:
-            config_handler: 配置处理器实例
-        """
-        self.config_handler = config_handler
-        self.config = config_handler.get_config()
-        self.is_running = False
-        
-    def process_signal(self, duration: float = 1.0) -> Optional[SignalData]:
-        """
-        处理信号数据
-        
-        Args:
-            duration: 信号采集时长（秒）
-            
-        Returns:
-            SignalData: 处理后的信号数据，失败时返回None
-        """
-        try:
-            logger.info(f"开始处理信号，中心频率：{self.config['center_freq']} Hz")
-            logger.info(f"采样率：{self.config['sample_rate']} Hz")
-            
-            # 模拟信号采集（实际项目中这里会连接真实的硬件）
-            signal_data = self._simulate_signal_acquisition(duration)
-            
-            if signal_data is None:
-                logger.error("信号采集失败")
-                return None
-            
-            # 信号预处理
-            processed_data = self._preprocess_signal(signal_data)
-            
-            # 创建信号数据对象
-            signal_obj = SignalData(
-                data=processed_data,
-                sample_rate=self.config['sample_rate'],
-                center_freq=self.config['center_freq'],
-                timestamp=time.time(),
-                metadata={
-                    'device_id': self.config['device_id'],
-                    'gain': self.config['gain'],
-                    'duration': duration,
-                    'data_type': 'complex64'
-                }
-            )
-            
-            logger.info(f"信号处理完成，数据长度：{len(processed_data)}")
-            return signal_obj
-            
-        except Exception as e:
-            logger.error(f"信号处理失败: {e}")
-            return None
+    def __init__(self, sample_rate: float = 2.4e6, center_freq: float = 98.7e6):
+        self.sample_rate = sample_rate
+        self.center_freq = center_freq
+        self.history = []
     
-    def _simulate_signal_acquisition(self, duration: float) -> Optional[np.ndarray]:
+    def create_iq_array(self, iq_data_list: Optional[List] = None, 
+                       sample_rate: Optional[float] = None) -> np.ndarray:
         """
-        模拟信号采集（实际项目中替换为真实硬件接口）
+        创建IQ信号数组
         
-        Args:
-            duration: 采集时长
+        参数:
+            iq_data_list: IQ数据列表，如 [[I1, Q1], [I2, Q2], ...]
+            sample_rate: 采样率
             
-        Returns:
-            np.ndarray: 采集的信号数据
+        返回:
+            IQ信号数组
         """
-        try:
-            sample_rate = self.config['sample_rate']
-            num_samples = int(sample_rate * duration)
-            
-            # 生成模拟的复数信号数据
-            # 实际项目中这里会调用RTL-SDR或其他硬件接口
-            real_part = np.random.normal(0, 0.1, num_samples)
-            imag_part = np.random.normal(0, 0.1, num_samples)
-            signal = real_part + 1j * imag_part
-            
-            logger.info(f"模拟采集了 {num_samples} 个样本")
-            return signal
-            
-        except Exception as e:
-            logger.error(f"信号采集模拟失败: {e}")
-            return None
+        if iq_data_list is None:
+            # 创建空的IQ数据
+            iq_array = np.zeros((1000, 2), dtype=np.float32)
+            logger.info("创建了空的IQ数组: %s", iq_array.shape)
+        else:
+            # 转换为NumPy数组
+            iq_array = np.array(iq_data_list, dtype=np.float32)
+            logger.info("从列表创建IQ数组: %s", iq_array.shape)
+        
+        # 添加采样率标注
+        if sample_rate is not None:
+            # 在数组末尾添加一行标注信息
+            info_row = np.array([[sample_rate, 0]], dtype=np.float32)
+            iq_array = np.vstack([iq_array, info_row])
+            logger.info("添加采样率标注: %s Hz", sample_rate)
+        
+        return iq_array
     
-    def _preprocess_signal(self, signal: np.ndarray) -> np.ndarray:
+    def process_iq_data(self, iq_array: np.ndarray) -> dict:
         """
-        信号预处理
+        处理IQ数据
         
-        Args:
-            signal: 原始信号数据
+        参数:
+            iq_array: IQ信号数组
             
-        Returns:
-            np.ndarray: 预处理后的信号
+        返回:
+            处理结果字典
         """
-        try:
-            # 归一化
-            signal_normalized = signal / np.max(np.abs(signal))
-            
-            # 简单的滤波（实际项目中可以使用更复杂的滤波器）
-            # 这里使用移动平均滤波器
-            window_size = min(100, len(signal_normalized) // 10)
-            if window_size > 1:
-                kernel = np.ones(window_size) / window_size
-                signal_filtered = np.convolve(signal_normalized, kernel, mode='same')
-            else:
-                signal_filtered = signal_normalized
-            
-            logger.info("信号预处理完成")
-            return signal_filtered
-            
-        except Exception as e:
-            logger.error(f"信号预处理失败: {e}")
-            return signal
+        logger.info("开始处理IQ数据，数组形状: %s", iq_array.shape)
+        
+        # 检查数组维度
+        if len(iq_array.shape) != 2 or iq_array.shape[1] != 2:
+            raise ValueError("IQ数组必须是二维数组，形状为 (n, 2)")
+        
+        print(f"数组维度: {iq_array.shape}")
+        print(f"数据类型: {iq_array.dtype}")
+        
+        # 提取前200组信号
+        first_200 = iq_array[:200]
+        print(f"前200组信号形状: {first_200.shape}")
+        
+        # 提取所有Q分量（排除最后一行标注）
+        if iq_array.shape[0] > 1 and np.all(iq_array[-1, :] == [iq_array[-1, 0], 0]):
+            # 最后一行是标注信息
+            q_components = iq_array[:-1, 1]
+            i_components = iq_array[:-1, 0]
+        else:
+            q_components = iq_array[:, 1]
+            i_components = iq_array[:, 0]
+        
+        print(f"Q分量数量: {len(q_components)}")
+        
+        # 计算I分量均值
+        i_mean = np.mean(i_components)
+        print(f"I分量均值: {i_mean}")
+        
+        # 滤波处理：将大于均值的I分量设为0
+        filtered_i = np.where(i_components > i_mean, 0, i_components)
+        
+        # 计算统计信息
+        stats = {
+            'i_mean': i_mean,
+            'i_std': np.std(i_components),
+            'q_mean': np.mean(q_components),
+            'q_std': np.std(q_components),
+            'i_max': np.max(i_components),
+            'i_min': np.min(i_components)
+        }
+        
+        logger.info("IQ数据处理完成，I分量均值: %.6f", i_mean)
+        
+        return {
+            'original_i': i_components,
+            'filtered_i': filtered_i,
+            'q_components': q_components,
+            'i_mean': i_mean,
+            'stats': stats,
+            'first_200_samples': first_200
+        }
     
-    def analyze_signal(self, signal_data: SignalData) -> dict:
-        """
-        分析信号特征
-        
-        Args:
-            signal_data: 信号数据对象
-            
-        Returns:
-            dict: 分析结果
-        """
+    def save_signal_data(self, iq_array: np.ndarray, filename: str):
+        """保存信号数据到文件"""
         try:
-            data = signal_data.data
-            
-            # 计算信号功率
-            power = np.mean(np.abs(data) ** 2)
-            
-            # 计算信号幅度
-            amplitude = np.mean(np.abs(data))
-            
-            # 计算频谱
-            fft_data = np.fft.fft(data)
-            spectrum = np.abs(fft_data)
-            
-            # 找到主频率
-            freqs = np.fft.fftfreq(len(data), 1/signal_data.sample_rate)
-            main_freq_idx = np.argmax(spectrum)
-            main_freq = freqs[main_freq_idx]
-            
-            analysis_result = {
-                'power': float(power),
-                'amplitude': float(amplitude),
-                'main_frequency': float(main_freq),
-                'snr_estimate': float(10 * np.log10(power / (np.var(data) + 1e-10))),
-                'spectrum_peak': float(np.max(spectrum)),
-                'data_length': len(data)
-            }
-            
-            logger.info(f"信号分析完成，主频率：{main_freq:.2f} Hz")
-            return analysis_result
-            
-        except Exception as e:
-            logger.error(f"信号分析失败: {e}")
-            return {}
-    
-    def save_signal_data(self, signal_data: SignalData, file_path: str) -> bool:
-        """
-        保存信号数据到文件
-        
-        Args:
-            signal_data: 信号数据对象
-            file_path: 保存路径
-            
-        Returns:
-            bool: 保存是否成功
-        """
-        try:
-            # 确保目录存在
-            Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-            
-            # 保存为numpy格式
-            np.savez_compressed(
-                file_path,
-                data=signal_data.data,
-                sample_rate=signal_data.sample_rate,
-                center_freq=signal_data.center_freq,
-                timestamp=signal_data.timestamp,
-                metadata=signal_data.metadata
-            )
-            
-            logger.info(f"信号数据已保存到 {file_path}")
+            np.save(filename, iq_array)
+            logger.info("信号数据已保存到: %s", filename)
             return True
-            
         except Exception as e:
-            logger.error(f"保存信号数据失败: {e}")
+            logger.error("保存信号数据失败: %s", e)
             return False
     
-    def load_signal_data(self, file_path: str) -> Optional[SignalData]:
-        """
-        从文件加载信号数据
-        
-        Args:
-            file_path: 文件路径
-            
-        Returns:
-            SignalData: 加载的信号数据，失败时返回None
-        """
+    def load_signal_data(self, filename: str) -> Optional[np.ndarray]:
+        """从文件加载信号数据"""
         try:
-            data = np.load(file_path)
-            
-            signal_data = SignalData(
-                data=data['data'],
-                sample_rate=float(data['sample_rate']),
-                center_freq=float(data['center_freq']),
-                timestamp=float(data['timestamp']),
-                metadata=data['metadata'].item() if 'metadata' in data else {}
-            )
-            
-            logger.info(f"信号数据已从 {file_path} 加载")
-            return signal_data
-            
+            data = np.load(filename)
+            logger.info("信号数据已从 %s 加载，形状: %s", filename, data.shape)
+            return data
         except Exception as e:
-            logger.error(f"加载信号数据失败: {e}")
+            logger.error("加载信号数据失败: %s", e)
             return None
-    
-    def start_continuous_acquisition(self, output_dir: str = "data") -> bool:
-        """
-        开始连续信号采集
-        
-        Args:
-            output_dir: 输出目录
-            
-        Returns:
-            bool: 启动是否成功
-        """
-        try:
-            self.is_running = True
-            output_path = Path(output_dir)
-            output_path.mkdir(exist_ok=True)
-            
-            logger.info(f"开始连续信号采集，输出目录：{output_dir}")
-            
-            # 这里可以实现连续采集逻辑
-            # 实际项目中可能需要多线程或异步处理
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"启动连续采集失败: {e}")
-            return False
-    
-    def stop_continuous_acquisition(self) -> bool:
-        """
-        停止连续信号采集
-        
-        Returns:
-            bool: 停止是否成功
-        """
-        try:
-            self.is_running = False
-            logger.info("连续信号采集已停止")
-            return True
-            
-        except Exception as e:
-            logger.error(f"停止连续采集失败: {e}")
-            return False
 
-# 便捷函数
-def process_signal(config_handler, duration: float = 1.0) -> Optional[SignalData]:
-    """
-    处理信号的便捷函数
+# 兼容性函数 - 保持与原有代码的兼容
+def create_iq_array(iq_data_list=None, sample_rate=None):
+    """创建IQ数组（兼容函数）"""
+    processor = SignalProcessor()
+    return processor.create_iq_array(iq_data_list, sample_rate)
+
+def process_iq_data(iq_array):
+    """处理IQ数据（兼容函数）"""
+    processor = SignalProcessor()
+    return processor.process_iq_data(iq_array)
+
+# 测试函数
+def test_signal_processor():
+    """测试信号处理器"""
+    print("测试信号处理器...")
     
-    Args:
-        config_handler: 配置处理器
-        duration: 采集时长
-        
-    Returns:
-        SignalData: 处理后的信号数据
-    """
-    processor = SignalProcessor(config_handler)
-    return processor.process_signal(duration)
+    # 创建处理器实例
+    processor = SignalProcessor(sample_rate=2.4e6, center_freq=98.7e6)
+    
+    # 测试创建数组
+    test_data = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+    iq_array = processor.create_iq_array(test_data, 2.4e6)
+    print(f"创建的数组: {iq_array}")
+    
+    # 测试处理数据
+    result = processor.process_iq_data(iq_array)
+    print(f"处理结果 - I均值: {result['i_mean']}")
+    
+    print("信号处理器测试完成！")
+
+if __name__ == "__main__":
+    test_signal_processor()
