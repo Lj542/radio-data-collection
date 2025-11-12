@@ -1,3 +1,4 @@
+# radio_basic_toolkit.py
 """
 无线电基础工具包 - 整合版本
 整合了参数配置、信号采集模拟和IQ信号处理功能
@@ -8,7 +9,9 @@ import numpy as np
 import os
 import sys
 
-# 导入各模块功能（假设原文件中的函数）
+# 添加路径以便导入模块
+sys.path.append('docs')
+
 try:
     from config.config_handler import save_config, load_config
 except ImportError:
@@ -17,8 +20,8 @@ except ImportError:
     def save_config(file_path, config_dict):
         """保存配置到JSON文件"""
         try:
-            with open(file_path, 'w') as f:
-                json.dump(config_dict, f, indent=4)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(config_dict, f, indent=4, ensure_ascii=False)
             print(f"配置已保存到: {file_path}")
             return True
         except Exception as e:
@@ -28,7 +31,7 @@ except ImportError:
     def load_config(file_path):
         """从JSON文件加载配置"""
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
             # 检查关键参数
@@ -52,9 +55,9 @@ except ImportError:
             return None
 
 try:
-    from signal_process.iq_processor import create_iq_array, process_iq_data
+    from signal_process.signal_processor import create_iq_array, process_iq_data
 except ImportError:
-    print("警告: 无法导入 iq_processor，使用备用实现")
+    print("警告: 无法导入 signal_processor，使用备用实现")
     # 备用实现
     def create_iq_array(iq_data_list=None, sample_rate=None):
         """创建IQ信号数组"""
