@@ -35,7 +35,7 @@
 pip install -r requirements.txt
 
 \### 运行测试
-bash
+```bash
 python radio_basic_toolkit.py
 \### 使用示例
 bash
