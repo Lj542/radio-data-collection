@@ -31,7 +31,7 @@
 
 
 \### 安装依赖
-bash
+```bash
 pip install -r requirements.txt
 
 \### 运行测试
