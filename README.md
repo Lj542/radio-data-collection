@@ -34,26 +34,3 @@
 
 ```bash
 
-pip install -r requirements.txt
-
-\### 运行测试
-bash
-python radio_basic_toolkit.py
-\### 使用示例
-bash
-python example_usage.py
-\### 项目结构
-text
-radio-data-collection/
-├── radio_basic_toolkit.py    # 主工具包
-├── example_usage.py          # 使用示例
-├── requirements.txt          # 依赖配置
-├── README.md                 # 项目说明
-└── docs/                     # 模块文档
-    ├── config/              # 参数配置模块
-    └── signal_process/      # 信号处理模块
-\### 开发团队
-无线电硬件与数据采集组
-
-\### 许可证
-MIT License
